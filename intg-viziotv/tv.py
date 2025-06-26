@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, cast
 
 import wakeonlan
-import config
 from config import VizioConfigDevice
 from pyee.asyncio import AsyncIOEventEmitter
 from pyvizio import Vizio, VizioAsync, guess_device_type
