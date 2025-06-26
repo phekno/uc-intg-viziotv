@@ -1,0 +1,61 @@
+{
+  "driver_id": "vizio-tv",
+  "name": {
+    "en": "vizio"
+  },
+  "display_name": {
+    "en": "Vizio TV"
+  },
+  "icon": "tv",
+  "version": "0.0.1",
+  "min_core_api": "0.20.0",
+  "min_core_ui": "0.20.0",
+  "setup_data_schema": {
+    "title": {
+      "en": "Vizio TV Setup"
+    },
+    "settings": []
+  },
+  "release_date": "2023-06-26",
+  "developer": {
+    "name": "Unfolded Circle",
+    "url": "https://www.unfoldedcircle.com"
+  },
+  "home_page": "https://www.unfoldedcircle.com",
+  "documentation_url": "https://www.unfoldedcircle.com/docs",
+  "issue_tracker": "https://github.com/unfoldedcircle/uc-intg-viziotv/issues",
+  "dependencies": {
+    "app_min_version": {
+      "remote_two": "0.20.0",
+      "remote_core": "0.20.0"
+    }
+  },
+  "device_discovery": true,
+  "device_discovery_requires_internet": false,
+  "entities": [
+    {
+      "entity": "media_player",
+      "entity_id_prefix": "media_player",
+      "features": [
+        "power",
+        "volume",
+        "volume_up_down",
+        "mute_toggle",
+        "play_pause",
+        "navigation",
+        "digit_channel",
+        "source"
+      ]
+    },
+    {
+      "entity": "remote",
+      "entity_id_prefix": "remote",
+      "features": [
+        "power",
+        "navigation",
+        "digit_channel",
+        "source"
+      ]
+    }
+  ]
+}
