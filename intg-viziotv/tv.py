@@ -8,7 +8,6 @@ from asyncio import AbstractEventLoop
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, cast
 
-import aiohttp
 import wakeonlan
 import config
 from config import VizioConfigDevice
