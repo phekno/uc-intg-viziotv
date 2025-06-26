@@ -36,7 +36,9 @@ _configured_devices: dict[str, tv.VizioTv] = {}
 
 @api.listens_to(ucapi.Events.CONNECT)
 async def on_r2_connect_cmd() -> None:
-    """Connect all configured TVs when the Remote Two sends the connect command."""
+    """
+    Connect all configured TVs when the Remote Two sends the connect command.
+    """
     # TODO check if we were in standby and ignore the call? We'll also get an EXIT_STANDBY
     _LOG.debug("R2 connect command: connecting device(s)")
     for device in _configured_devices.values():
