@@ -53,14 +53,8 @@ jobs:
 
       - name: Scan image with Grype
         uses: anchore/scan-action@v6
-        id: scan
         with:
           image: uc-intg-viziotv:ci
           fail-build: false
           severity-cutoff: critical
-
-      - name: Upload SARIF report
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: ${{ steps.scan.outputs.sarif }}
+          output-format: table
