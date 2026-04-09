@@ -7,40 +7,39 @@ This module implements a Remote Two integration driver for Vizio TV receivers.
 """
 
 import asyncio
-import json
 import logging
 import os
+import sys
 from typing import Any
 
 import config
+from config import device_from_entity_id
 import tv
-import media_player
+import media_player as mp
 import remote
 import setup
 import ucapi
-import ucapi.api_definitions as uc
-import websockets
-from config import device_from_entity_id
-from ucapi import IntegrationAPI
-from ucapi.api import filter_log_msg_data
+import ucapi.api as uc
 from ucapi.media_player import Attributes as MediaAttr, States
 
 _LOG = logging.getLogger("driver")  # avoid having __main__ in log messages
-_LOOP = asyncio.get_event_loop()
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+_LOOP = asyncio.new_event_loop()
+asyncio.set_event_loop(_LOOP)
 
 # Global variables
-api = ucapi.IntegrationAPI(_LOOP)
-# Map of id -> Vizio instance
-_configured_devices: dict[str, tv.VizioTv] = {}
+api = uc.IntegrationAPI(_LOOP)
 
+_configured_devices: dict[str, tv.VizioTv] = {}
 
 @api.listens_to(ucapi.Events.CONNECT)
 async def on_r2_connect_cmd() -> None:
     """
     Connect all configured TVs when the Remote Two sends the connect command.
     """
-    # TODO check if we were in standby and ignore the call? We'll also get an EXIT_STANDBY
-    _LOG.debug("R2 connect command: connecting device(s)")
+    _LOG.debug("connect command: connecting device(s)")
     for device in _configured_devices.values():
         # start background task
         try:
@@ -100,23 +99,31 @@ async def on_subscribe_entities(entity_ids: list[str]) -> None:
     for entity_id in entity_ids:
         entity = api.configured_entities.get(entity_id)
         device_id = device_from_entity_id(entity_id)
+        
+        if device_id is None:
+            _LOG.error("Failed to extract device ID from entity ID: %s", entity_id)
+            continue
+            
         if device_id in _configured_devices:
             device_config = _configured_devices[device_id]
-            attributes = device_config.attributes
-            if isinstance(entity, media_player.VizioMediaPlayer):
-                api.configured_entities.update_attributes(
-                    entity_id, attributes
-                )
-            if isinstance(entity, remote.VizioRemote):
-                api.configured_entities.update_attributes(
-                    entity_id, {ucapi.remote.Attributes.STATE:
-                                    remote.VIZIO_REMOTE_STATE_MAPPING.get(attributes.get(MediaAttr.STATE, States.UNKNOWN))}
-                )
             try:
-                if not device_config.is_connected:
-                    await _LOOP.create_task(device_config.connect())
+                attributes = device_config.attributes
+                if isinstance(entity, mp.VizioMediaPlayer):
+                    api.configured_entities.update_attributes(
+                        entity_id, attributes
+                    )
+                if isinstance(entity, remote.VizioRemote):
+                    api.configured_entities.update_attributes(
+                        entity_id, {ucapi.remote.Attributes.STATE:
+                                        remote.VIZIO_REMOTE_STATE_MAPPING.get(attributes.get(MediaAttr.STATE, States.UNKNOWN), ucapi.remote.States.UNKNOWN)}
+                    )
+                try:
+                    if not device_config.is_connected:
+                        await _LOOP.create_task(device_config.connect())
+                except Exception as ex:
+                    _LOG.error("Error while reconnecting to the Vizio TV %s", ex)
             except Exception as ex:
-                _LOG.error("Error while reconnecting to the Vizio TV %s", ex)
+                _LOG.error("Error processing device %s: %s", device_id, ex)
             continue
 
         device_config = config.devices.get(device_id)
@@ -254,28 +261,42 @@ async def on_device_update(device_id: str, update: dict[str, Any] | None) -> Non
     """
     if update is None:
         if device_id not in _configured_devices:
+            _LOG.debug("Device %s not in configured devices, skipping update", device_id)
             return
         device = _configured_devices[device_id]
-        update = device.attributes
+        try:
+            update = device.attributes
+        except Exception as ex:
+            _LOG.error("Error getting attributes for device %s: %s", device_id, ex)
+            return
     else:
         _LOG.info("[%s] Vizio TV update: %s", device_id, update)
 
-    attributes = None
-
     # TODO awkward logic: this needs better support from the integration library
-    _LOG.info("Update device %s for configured devices %s", device_id, api.configured_entities)
-    for entity_id in _entities_from_device_id(device_id):
-        configured_entity = api.configured_entities.get(entity_id)
-        if configured_entity is None:
-            return
+    _LOG.debug("Update device %s for configured entities", device_id)
+    
+    try:
+        entity_ids = _entities_from_device_id(device_id)
+        for entity_id in entity_ids:
+            configured_entity = api.configured_entities.get(entity_id)
+            if configured_entity is None:
+                _LOG.debug("Entity %s not configured, skipping update", entity_id)
+                continue
 
-        if isinstance(configured_entity, media_player.VizioMediaPlayer):
-            attributes = configured_entity.filter_changed_attributes(update)
-        elif isinstance(configured_entity, remote.VizioRemote):
-            attributes = configured_entity.filter_changed_attributes(update)
+            attributes = None
+            try:
+                if isinstance(configured_entity, mp.VizioMediaPlayer):
+                    attributes = configured_entity.filter_changed_attributes(update)
+                elif isinstance(configured_entity, remote.VizioRemote):
+                    attributes = configured_entity.filter_changed_attributes(update)
+            except Exception as ex:
+                _LOG.error("Error filtering attributes for entity %s: %s", entity_id, ex)
+                continue
 
-        if attributes:
-            api.configured_entities.update_attributes(entity_id, attributes)
+            if attributes:
+                api.configured_entities.update_attributes(entity_id, attributes)
+    except Exception as ex:
+        _LOG.error("Error updating device %s: %s", device_id, ex)
 
 
 def _entities_from_device_id(device_id: str) -> list[str]:
@@ -290,7 +311,7 @@ def _entities_from_device_id(device_id: str) -> list[str]:
     return [f"media_player.{device_id}", f"remote.{device_id}"]
 
 
-def _configure_new_device(device_config: config.VizioConfigDevice, connect: bool = True) -> None:
+def _configure_new_device(device_config: config.VizioDevice, connect: bool = True) -> None:
     """
     Create and configure a new device.
 
@@ -300,6 +321,8 @@ def _configure_new_device(device_config: config.VizioConfigDevice, connect: bool
     :param connect: True: start connection to receiver.
     """
     # the device may be already configured if the user changed settings of existing device
+    _LOG.debug(device_config)
+
     if device_config.id in _configured_devices:
         _LOG.debug("Existing config device updated, update the running device %s", device_config)
         device = _configured_devices[device_config.id]
@@ -324,34 +347,37 @@ def _configure_new_device(device_config: config.VizioConfigDevice, connect: bool
     _register_available_entities(device_config, device)
 
 
-def _register_available_entities(device_config: config.VizioConfigDevice, device: tv.VizioTv) -> None:
+def _register_available_entities(device_config: config.VizioDevice, device: tv.VizioTv) -> None:
     """
     Create entities for given receiver device and register them as available entities.
 
     :param device_config: Receiver
     """
     # plain and simple for now: only one media_player per device
-    entities = [media_player.VizioMediaPlayer(device_config, device), remote.VizioRemote(device_config, device)]
+    entities = [mp.VizioMediaPlayer(device_config, device), remote.VizioRemote(device_config, device)]
     for entity in entities:
         if api.available_entities.contains(entity.id):
             api.available_entities.remove(entity.id)
         api.available_entities.add(entity)
 
 
-def on_device_added(device: config.VizioConfigDevice) -> None:
+def on_device_added(device: config.VizioDevice) -> None:
     """Handle a newly added device in the configuration."""
     _LOG.debug("New device added: %s", device)
     _configure_new_device(device, connect=False)
 
 
-def on_device_removed(device: config.VizioConfigDevice | None) -> None:
+def on_device_removed(device: config.VizioDevice | None) -> None:
     """Handle a removed device in the configuration."""
     if device is None:
         _LOG.debug("Configuration cleared, disconnecting & removing all configured Vizio TV instances")
         for configured in _configured_devices.values():
             _LOOP.create_task(_async_remove(configured))
+        _LOG.debug("clearing configured devices")
         _configured_devices.clear()
+        _LOG.debug("clearing configured entities")
         api.configured_entities.clear()
+        _LOG.debug("clearing available entities")
         api.available_entities.clear()
     else:
         if device.id in _configured_devices:
@@ -382,8 +408,15 @@ async def main():
     logging.getLogger("setup_flow").setLevel(level)
 
     config.devices = config.Devices(api.config_dir_path, on_device_added, on_device_removed)
-    for device_config in config.devices.all():
-        _configure_new_device(device_config, connect=False)
+    
+    # Check if there are any configured devices before iterating
+    device_list = list(config.devices.all())
+    if device_list:
+        _LOG.debug("Found %d configured device(s)", len(device_list))
+        for device_config in device_list:
+            _configure_new_device(device_config, connect=False)
+    else:
+        _LOG.info("No devices configured yet. Please complete the setup flow to add devices.")
 
     await api.init("driver.json", setup.driver_setup_handler)
 

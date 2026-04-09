@@ -12,6 +12,8 @@ import os
 from dataclasses import dataclass
 from typing import Iterator
 
+from asyncio import Lock
+
 from ucapi import EntityTypes
 
 _LOG = logging.getLogger(__name__)
@@ -19,37 +21,50 @@ _LOG = logging.getLogger(__name__)
 _CFG_FILENAME = "config.json"
 
 
-def create_entity_id(avr_id: str, entity_type: EntityTypes) -> str:
+def create_entity_id(device_id: str, entity_type: EntityTypes) -> str:
     """Create a unique entity identifier for the given receiver and entity type."""
-    return f"{entity_type.value}.{avr_id}"
+    return f"{entity_type.value}.{device_id}"
 
 
 def device_from_entity_id(entity_id: str) -> str | None:
     """
-    Return the avr_id prefix of an entity_id.
+    Return the device_id prefix of an entity_id.
 
-    The prefix is the part before the first dot in the name and refers to the AVR device identifier.
+    The prefix is the part before the first dot in the name and refers to the device identifier.
 
     :param entity_id: the entity identifier
     :return: the device prefix, or None if entity_id doesn't contain a dot
     """
-    return entity_id.split(".", 1)[1]
+    try:
+        return entity_id.split(".", 1)[1]
+    except (IndexError, AttributeError):
+        _LOG.warning("Invalid entity_id format: %s", entity_id)
+        return None
 
 
 @dataclass
-class VizioConfigDevice:
-    """Device configuration."""
-
+class VizioDevice:
+    
     id: str
+    """Unique identifier of the device"""
     name: str
+    """Unique name of the device"""
     address: str
-    key: str
-    mac_address: str | None
-    mac_address2: str | None
-    broadcast: str | None
-    interface: str | None
-    wol_port: int | None
-
+    """IP address and port of the device"""
+    auth_token: str = ""
+    """Auth token for the device"""
+    key: str = ""
+    """Authentication key for the device"""
+    mac_address: str = None
+    """MAC address (wired) for Wake-on-LAN"""
+    mac_address2: str = None
+    """MAC address (wifi) for Wake-on-LAN"""
+    interface: str = "0.0.0.0"
+    """Interface to use for magic packet"""
+    broadcast: str = None
+    """Broadcast address to use for magic packet"""
+    wol_port: int = 9
+    """Wake on LAN port"""
 
 class _EnhancedJSONEncoder(json.JSONEncoder):
     """Python dataclass json encoder."""
@@ -71,19 +86,21 @@ class Devices:
         """
         self._data_path: str = data_path
         self._cfg_file_path: str = os.path.join(data_path, _CFG_FILENAME)
-        self._config: list[VizioConfigDevice] = []
+        self._config: list[VizioDevice] = []
         self._add_handler = add_handler
         self._remove_handler = remove_handler
-
         self.load()
+        self._config_lock = Lock()
 
     @property
     def data_path(self) -> str:
         """Return the configuration path."""
         return self._data_path
 
-    def all(self) -> Iterator[VizioConfigDevice]:
+    def all(self) -> Iterator[VizioDevice]:
         """Get an iterator for all device configurations."""
+        _LOG.debug("in config.all")
+        _LOG.debug(self._config)
         return iter(self._config)
 
     def contains(self, avr_id: str) -> bool:
@@ -93,19 +110,19 @@ class Devices:
                 return True
         return False
 
-    def add_or_update(self, atv: VizioConfigDevice) -> None:
+    def add_or_update(self, tv: VizioDevice) -> None:
         """Add a new configured device."""
-        if self.contains(atv.id):
-            _LOG.debug("Existing config %s, updating it %s", atv.id, atv)
-            self.update(atv)
+        if self.contains(tv.id):
+            _LOG.debug("Existing config %s, updating it %s", tv.id, tv)
+            self.update(tv)
         else:
-            _LOG.debug("Adding new config %s", atv)
-            self._config.append(atv)
+            _LOG.debug("Adding new config %s", tv)
+            self._config.append(tv)
             self.store()
         if self._add_handler is not None:
-            self._add_handler(atv)
+            self._add_handler(tv)
 
-    def get(self, avr_id: str) -> VizioConfigDevice | None:
+    def get(self, avr_id: str) -> VizioDevice | None:
         """Get device configuration for given identifier."""
         for item in self._config:
             if item.id == avr_id:
@@ -113,7 +130,7 @@ class Devices:
                 return dataclasses.replace(item)
         return None
 
-    def update(self, device: VizioConfigDevice) -> bool:
+    def update(self, device: VizioDevice) -> bool:
         """Update a configured device and persist configuration."""
         for item in self._config:
             if item.id == device.id:
@@ -178,7 +195,7 @@ class Devices:
                 data = json.load(f)
             for item in data:
                 try:
-                    self._config.append(VizioConfigDevice(**item))
+                    self._config.append(VizioDevice(**item))
                 except TypeError as ex:
                     _LOG.warning("Invalid configuration entry will be ignored: %s", ex)
             return True

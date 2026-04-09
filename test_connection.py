@@ -1,13 +1,5 @@
-import asyncio
-import logging
-import tabulate
-import sys
-
 import pyvizio
-from pyvizio import VizioAsync, guess_device_type
-from pyvizio.const import (
-    DEFAULT_TIMEOUT,
-)
+from pyvizio.discovery.zeroconf import discover
 
 # _LOOP = asyncio.new_event_loop()
 # asyncio.set_event_loop(_LOOP)
@@ -55,13 +47,13 @@ from pyvizio.const import (
 #     _LOOP.run_until_complete(main())
 #     _LOOP.run_forever()
 
-_LOG = logging.getLogger()
-include_device_type = True
-zeroconf_devices = VizioAsync.discovery_zeroconf(DEFAULT_TIMEOUT)
-ssdp_devices = VizioAsync.discovery_ssdp(DEFAULT_TIMEOUT)
-
+zeroconf_devices = discover("_viziocast._tcp.local.", timeout=10)
 print(zeroconf_devices)
-print(ssdp_devices)
+# zeroconf_devices = VizioAsync.discovery_zeroconf(DEFAULT_TIMEOUT)
+# ssdp_devices = VizioAsync.discovery_ssdp(DEFAULT_TIMEOUT)
+
+# print(zeroconf_devices)
+# print(ssdp_devices)
 
 # data = []
 

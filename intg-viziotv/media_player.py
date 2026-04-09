@@ -6,22 +6,16 @@ Media-player entity functions.
 
 import logging
 from typing import Any
-import asyncio
+
 import ucapi
-import ucapi.api as uc
 
 import tv
-from config import VizioConfigDevice, create_entity_id
+from config import VizioDevice, create_entity_id
 from const import SimpleCommands
 from ucapi import MediaPlayer, media_player, EntityTypes
 from ucapi.media_player import DeviceClasses, Attributes, Features, States
 
-_LOOP = asyncio.new_event_loop()
-asyncio.set_event_loop(_LOOP)
-
 _LOG = logging.getLogger(__name__)
-api = uc.IntegrationAPI(_LOOP)
-_configured_devices: dict[str, tv.VizioTv] = {}
 
 features = [
     Features.ON_OFF,
@@ -40,7 +34,7 @@ features = [
 class VizioMediaPlayer(MediaPlayer):
     """Representation of a Vizio MediaPlayer entity."""
 
-    def __init__(self, config_device: VizioConfigDevice, device: tv.VizioTv):
+    def __init__(self, config_device: VizioDevice, device: tv.VizioTv):
         """Initialize the class."""
         self._device = device
         _LOG.debug("VizioMediaPlayer init")
@@ -66,6 +60,8 @@ class VizioMediaPlayer(MediaPlayer):
                     SimpleCommands.HDMI_2.value,
                     SimpleCommands.HDMI_3.value,
                     SimpleCommands.HDMI_4.value,
+                    SimpleCommands.INPUT_TV.value,
+                    SimpleCommands.INPUT_CAST.value,
                 ],
             },
             cmd_handler=self.media_player_cmd_handler,
@@ -183,15 +179,19 @@ class VizioMediaPlayer(MediaPlayer):
                 case SimpleCommands.CH_LIST:
                     await self._device.send_key("KEY_CH_LIST")
                 case SimpleCommands.HDMI_1:
-                    await self._device.launch_app(app_name="HDMI1")
+                    await self._device.launch_app(app_name="HDMI-1")
                 case SimpleCommands.HDMI_2:
-                    await self._device.launch_app(app_name="HDMI2")
+                    await self._device.launch_app(app_name="HDMI-2")
                 case SimpleCommands.HDMI_3:
-                    await self._device.launch_app(app_name="HDMI3")
+                    await self._device.launch_app(app_name="HDMI-3")
                 case SimpleCommands.HDMI_4:
-                    await self._device.launch_app(app_name="HDMI4")
+                    await self._device.launch_app(app_name="HDMI-4")
+                case SimpleCommands.INPUT_TV:
+                    await self._device.launch_app(app_name="TV")
+                case SimpleCommands.INPUT_CAST:
+                    await self._device.launch_app(app_name="CAST")
                 case SimpleCommands.DEVICE_INFO:
-                    self._device.get_device_info()
+                    await self._device.get_device_info()
         except Exception as ex:  # pylint: disable=broad-except
             _LOG.error("Error executing command %s: %s", cmd_id, ex)
             return ucapi.StatusCodes.TIMEOUT

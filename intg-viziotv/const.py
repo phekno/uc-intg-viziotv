@@ -35,15 +35,17 @@ class SimpleCommands(str, Enum):
     HDMI_2 = "hdmi_2"
     HDMI_3 = "hdmi_3"
     HDMI_4 = "hdmi_4"
+    INPUT_TV = "input_tv"
+    INPUT_CAST = "input_cast"
     DEVICE_INFO = "device_info"
 
 
 # Mapping of Vizio remote keys to their corresponding codes
 VIZIO_KEY_MAPPING = {
-    "VOLUME_UP": "VOLUME_UP",
-    "VOLUME_DOWN": "VOLUME_DOWN",
-    "MUTE": "MUTE",
-    "POWER": "POWER",
+    "VOLUME_UP": "VOL_UP",
+    "VOLUME_DOWN": "VOL_DOWN",
+    "MUTE": "MUTE_TOGGLE",
+    "POWER": "POW_TOGGLE",
     "UP": "UP",
     "DOWN": "DOWN",
     "LEFT": "LEFT",
@@ -54,17 +56,16 @@ VIZIO_KEY_MAPPING = {
     "MENU": "MENU",
     "INFO": "INFO",
     "GUIDE": "GUIDE",
-    "ENTER": "ENTER",
+    "ENTER": "OK",
     "EXIT": "EXIT",
     "PLAY": "PLAY",
     "PAUSE": "PAUSE",
     "STOP": "STOP",
-    "FORWARD": "FORWARD",
-    "REWIND": "REWIND",
-    "RECORD": "RECORD",
+    "FORWARD": "SEEK_FWD",
+    "REWIND": "SEEK_BACK",
     "CHANNEL_UP": "CH_UP",
     "CHANNEL_DOWN": "CH_DOWN",
-    "PREVIOUS": "PREVIOUS",
+    "PREVIOUS": "PREV_CH",
     "0": "0",
     "1": "1",
     "2": "2",

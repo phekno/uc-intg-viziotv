@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 import ucapi
-from config import VizioConfigDevice, create_entity_id
+from config import VizioDevice, create_entity_id
 from ucapi import EntityTypes, Remote, StatusCodes, media_player
 from ucapi.media_player import States as MediaStates
 from ucapi.remote import Attributes, Commands, Features
@@ -33,7 +33,7 @@ VIZIO_REMOTE_STATE_MAPPING = {
 class VizioRemote(Remote):
     """Representation of a Vizio Remote entity."""
 
-    def __init__(self, config_device: VizioConfigDevice, device: tv.VizioTv):
+    def __init__(self, config_device: VizioDevice, device: tv.VizioTv):
         """Initialize the class."""
         self._device: tv.VizioTv = device
         _LOG.debug("Vizio Remote init")
@@ -201,15 +201,19 @@ class VizioRemote(Remote):
                     case SimpleCommands.CH_LIST:
                         await client.send_key("KEY_CH_LIST")
                     case SimpleCommands.HDMI_1:
-                        await client.launch_app(app_name="HDMI1")
+                        await client.launch_app(app_name="HDMI-1")
                     case SimpleCommands.HDMI_2:
-                        await client.launch_app(app_name="HDMI2")
+                        await client.launch_app(app_name="HDMI-2")
                     case SimpleCommands.HDMI_3:
-                        await client.launch_app(app_name="HDMI3")
+                        await client.launch_app(app_name="HDMI-3")
                     case SimpleCommands.HDMI_4:
-                        await client.launch_app(app_name="HDMI4")
+                        await client.launch_app(app_name="HDMI-4")
+                    case SimpleCommands.INPUT_TV:
+                        await client.launch_app(app_name="TV")
+                    case SimpleCommands.INPUT_CAST:
+                        await client.launch_app(app_name="CAST")
                     case SimpleCommands.DEVICE_INFO:
-                        client.get_device_info()
+                        await client.get_device_info()
                 res = StatusCodes.OK
             elif cmd_id == Commands.SEND_CMD_SEQUENCE:
                 commands = params.get("sequence", [])
@@ -238,6 +242,8 @@ VIZIO_REMOTE_SIMPLE_COMMANDS = [
     SimpleCommands.HDMI_2.value,
     SimpleCommands.HDMI_3.value,
     SimpleCommands.HDMI_4.value,
+    SimpleCommands.INPUT_TV.value,
+    SimpleCommands.INPUT_CAST.value,
     SimpleCommands.DEVICE_INFO.value,
 ]
 VIZIO_REMOTE_BUTTONS_MAPPING: [DeviceButtonMapping] = [
@@ -466,6 +472,26 @@ VIZIO_REMOTE_UI_PAGES = [
                 },
                 "text": "HDMI 4",
                 "location": {"x": 3, "y": 4},
+                "size": {"height": 1, "width": 1},
+                "type": "text",
+            },
+            {
+                "command": {
+                    "cmd_id": "remote.send",
+                    "params": {"command": SimpleCommands.INPUT_TV, "repeat": 1},
+                },
+                "text": "TV",
+                "location": {"x": 1, "y": 6},
+                "size": {"height": 1, "width": 1},
+                "type": "text",
+            },
+            {
+                "command": {
+                    "cmd_id": "remote.send",
+                    "params": {"command": SimpleCommands.INPUT_CAST, "repeat": 1},
+                },
+                "text": "CAST",
+                "location": {"x": 2, "y": 6},
                 "size": {"height": 1, "width": 1},
                 "type": "text",
             },
