@@ -10,26 +10,27 @@ import functools
 import ipaddress
 import logging
 import os
+import socket
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
 
-import config
 import discover
 import pyvizio
 import tv
 from ucapi import (
-    AbortDriverSetup,
     DriverSetupRequest,
     IntegrationSetupError,
+    RequestUserConfirmation,
     RequestUserInput,
     SetupAction,
     SetupComplete,
     SetupDriver,
     SetupError,
-    UserDataResponse, 
-    RequestUserConfirmation, 
     UserConfirmationResponse,
+    UserDataResponse,
 )
+
+import config
 
 _LOG = logging.getLogger(__name__)
 
@@ -59,7 +60,9 @@ _discovered_devices: list[dict[str, str]] = []
 _pairing_vizio_tv = None
 _config_device = None
 _user_input_discovery = RequestUserInput(
-    {"en": "Setup mode",},
+    {
+        "en": "Setup mode",
+    },
     [
         {
             "id": "info",
@@ -77,7 +80,9 @@ _user_input_discovery = RequestUserInput(
         {
             "field": {"text": {"value": ""}},
             "id": "address",
-            "label": {"en": "IP address",},
+            "label": {
+                "en": "IP address",
+            },
         },
     ],
 )
@@ -128,28 +133,30 @@ async def handle_driver_setup(msg: DriverSetupRequest) -> RequestUserInput | Set
 
         if msg.reconfigure:
             _LOG.debug("Ignoring driver reconfiguration request")
-        
+
         # If we have configured devices, show configuration mode
         devices_list = list(config.devices.all())
         if devices_list:
             _setup_step = SetupSteps.CONFIGURATION_MODE
             _LOG.debug("Found %d configured device(s)", len(devices_list))
-            
+
             # Create options for device selection
             device_options = []
             default_device_id = ""
-            
+
             try:
                 for device in devices_list:
-                    device_options.append({
-                        "id": device.id,
-                        "label": {"en": f"{device.name} ({device.address})"},
-                    })
+                    device_options.append(
+                        {
+                            "id": device.id,
+                            "label": {"en": f"{device.name} ({device.address})"},
+                        }
+                    )
                     if not default_device_id:
                         default_device_id = device.id
             except Exception as ex:
                 _LOG.error("Error processing device list: %s", ex)
-                
+
             return RequestUserInput(
                 title={"en": "Configuration mode"},
                 settings=[
@@ -327,12 +334,12 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
         # Initialize _discovered_devices to empty list if it's None
         if _discovered_devices is None:
             _discovered_devices = []
-            
+
         # Get address from msg if available, otherwise use empty string
         address = ""
-        if msg and hasattr(msg, 'input_values'):
+        if msg and hasattr(msg, "input_values"):
             address = msg.input_values.get("address", "")
-        
+
         _LOG.info("Handle discovery with address: '%s'", address)
 
         # workaround for web-configurator not picking up first response
@@ -345,9 +352,11 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
                 # Check if we can connect to the device
                 _LOG.debug("Guessing device type for %s", address)
                 loop = asyncio.get_event_loop()
-                device_type = await loop.run_in_executor(_executor, functools.partial(pyvizio.guess_device_type, address))
+                device_type = await loop.run_in_executor(
+                    _executor, functools.partial(pyvizio.guess_device_type, address)
+                )
                 _LOG.debug("Device type for %s: %s", address, device_type)
-                
+
                 if device_type != pyvizio.DEVICE_CLASS_TV:
                     _LOG.warning("Device at %s is not a Vizio TV (type: %s)", address, device_type)
                     # Show manual IP entry dialog again with error message
@@ -372,12 +381,12 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
                             },
                         ],
                     )
-                
+
                 # Create a device entry
                 _LOG.debug("Creating manual device entry for %s", address)
                 _discovered_devices = [{"host": address, "modelName": "Vizio TV", "friendlyName": "Vizio TV"}]
                 _LOG.debug("Manual device entry created: %s", _discovered_devices)
-                
+
             except Exception as ex:
                 _LOG.error("Cannot connect to %s: %s", address, ex)
                 # Show manual IP entry dialog again with error message
@@ -408,7 +417,7 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
             try:
                 # Clear any previous discoveries
                 _discovered_devices = []
-                
+
                 # Call the discovery function with a timeout
                 _LOG.debug("Calling async_identify_vizio_devices")
                 try:
@@ -416,7 +425,7 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
                     discovery_task = asyncio.create_task(discover.async_identify_vizio_devices())
                     _discovered_devices = await asyncio.wait_for(discovery_task, timeout=60.0)  # Increased timeout
                     _LOG.info("Discovery completed, found %d devices", len(_discovered_devices))
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     _LOG.warning("Discovery timed out after 60 seconds")
                     # Show manual IP entry dialog
                     return RequestUserInput(
@@ -440,7 +449,7 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
                             },
                         ],
                     )
-                
+
                 # Validate the discovered devices
                 if not _discovered_devices:
                     _LOG.warning("No Vizio TVs found on the network")
@@ -466,7 +475,7 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
                             },
                         ],
                     )
-                
+
                 # Log the discovered devices
                 for i, device in enumerate(_discovered_devices):
                     _LOG.debug("Discovered device %d: %s", i, device)
@@ -520,11 +529,11 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
                     },
                 ],
             )
-            
+
         # Create a safe default value for the select field
         default_device = _discovered_devices[0]["host"] if _discovered_devices else ""
         _LOG.debug("Default device for selection: %s", default_device)
-        
+
         # Create options for the select field
         device_options = []
         try:
@@ -534,19 +543,21 @@ async def handle_discovery(msg: UserDataResponse) -> RequestUserInput | SetupErr
                 if not host:
                     _LOG.warning("Skipping device with no host: %s", device)
                     continue
-                    
-                device_options.append({
-                    "id": host,
-                    "label": {"en": f"{friendly_name} ({host})"},
-                })
+
+                device_options.append(
+                    {
+                        "id": host,
+                        "label": {"en": f"{friendly_name} ({host})"},
+                    }
+                )
         except Exception as ex:
             _LOG.error("Error creating device options: %s", ex)
             return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
         if not device_options:
             _LOG.error("No valid device options created")
             return SetupError(error_type=IntegrationSetupError.DEVICE_NOT_FOUND)
-            
+
         _LOG.debug("Created %d device options", len(device_options))
 
         # Present the discovered devices to the user
@@ -599,20 +610,20 @@ async def handle_device_choice(msg: UserDataResponse) -> RequestUserInput | Setu
     global _pairing_vizio_tv
     global _config_device
     global _setup_step
-    
+
     try:
         _LOG.debug("Handling device choice")
-        
+
         # Initialize variables
         discovered_device = None
         host = msg.input_values.get("choice", "")
-        
+
         _LOG.debug("User selected device with host: '%s'", host)
-        
+
         if not host:
             _LOG.error("No device selected")
             return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
         mac_address = None
         mac_address2 = None
 
@@ -638,9 +649,13 @@ async def handle_device_choice(msg: UserDataResponse) -> RequestUserInput | Setu
             _LOG.warning("Selected device not found in discovered devices list, creating default device")
             discovered_device = {"host": host, "modelName": "Vizio TV", "friendlyName": "Vizio TV"}
 
-        _LOG.debug("Chosen Vizio TV: %s (wired mac %s, wifi mac %s). Trying to connect and retrieve device information...",
-                host, mac_address, mac_address2)
-        
+        _LOG.debug(
+            "Chosen Vizio TV: %s (wired mac %s, wifi mac %s). Trying to connect and retrieve device information...",
+            host,
+            mac_address,
+            mac_address2,
+        )
+
         try:
             # Get a unique ID for the device
             _LOG.debug("Getting unique ID for device at %s", host)
@@ -649,31 +664,28 @@ async def handle_device_choice(msg: UserDataResponse) -> RequestUserInput | Setu
                 unique_id_task = asyncio.create_task(pyvizio.VizioAsync.get_unique_id(host, pyvizio.DEVICE_CLASS_TV))
                 unique_id = await asyncio.wait_for(unique_id_task, timeout=10.0)
                 _LOG.debug("Got unique ID: %s", unique_id)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOG.error("Timeout getting unique ID for Vizio TV at %s", host)
                 return SetupError(error_type=IntegrationSetupError.TIMEOUT)
-                
+
             if not unique_id:
                 _LOG.error("Could not get unique ID for Vizio TV at %s", host)
                 return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
             # Create a Vizio device instance
             _LOG.debug("Creating Vizio device instance")
             try:
                 device_name = discovered_device.get("friendlyName", discovered_device.get("modelName", "Vizio TV"))
                 _LOG.debug("Using device name: %s", device_name)
-                
+
                 _pairing_vizio_tv = pyvizio.Vizio(
-                    device_id=unique_id,
-                    ip=host,
-                    name=device_name,
-                    device_type=pyvizio.DEVICE_CLASS_TV
+                    device_id=unique_id, ip=host, name=device_name, device_type=pyvizio.DEVICE_CLASS_TV
                 )
                 _LOG.debug("Created Vizio device instance: %s", _pairing_vizio_tv)
             except Exception as ex:
                 _LOG.error("Error creating Vizio device instance: %s", ex)
                 return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
             # Check if we can connect to the device
             _LOG.debug("Checking if we can connect to the device")
             try:
@@ -686,7 +698,7 @@ async def handle_device_choice(msg: UserDataResponse) -> RequestUserInput | Setu
             except Exception as ex:
                 _LOG.error("Error checking connection to Vizio TV at %s: %s", host, ex)
                 return SetupError(error_type=IntegrationSetupError.CONNECTION_REFUSED)
-            
+
             # Start pairing process
             _LOG.debug("Starting pairing process")
             try:
@@ -699,33 +711,35 @@ async def handle_device_choice(msg: UserDataResponse) -> RequestUserInput | Setu
                 global _pairing_challenge_type, _pairing_req_token
                 _pairing_challenge_type = pair_data.ch_type
                 _pairing_req_token = pair_data.token
-                _LOG.debug("Stored pairing challenge_type=%s, req_token=%s", _pairing_challenge_type, _pairing_req_token)
+                _LOG.debug(
+                    "Stored pairing challenge_type=%s, req_token=%s", _pairing_challenge_type, _pairing_req_token
+                )
             except Exception as ex:
                 _LOG.error("Error starting pairing with Vizio TV at %s: %s", host, ex)
                 return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
             # Create a temporary config device
             _LOG.debug("Creating temporary config device")
             try:
                 model_name = discovered_device.get("friendlyName", discovered_device.get("modelName", "Vizio TV"))
                 _LOG.debug("Using model name: %s", model_name)
-                
+
                 _config_device = config.VizioDevice(
-                    id=unique_id, 
-                    name=model_name, 
-                    address=host, 
+                    id=unique_id,
+                    name=model_name,
+                    address=host,
                     key="",  # Will be set after pairing
-                    mac_address=mac_address, 
+                    mac_address=mac_address,
                     mac_address2=mac_address2,
-                    interface="0.0.0.0", 
-                    broadcast=None, 
-                    wol_port=9
+                    interface="0.0.0.0",
+                    broadcast=None,
+                    wol_port=9,
                 )
                 _LOG.debug("Created temporary config device: %s", _config_device)
             except Exception as ex:
                 _LOG.error("Error creating temporary config device: %s", ex)
                 return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
             # Move to pairing step
             _LOG.debug("Moving to PAIRING step")
             _setup_step = SetupSteps.PAIRING
@@ -750,7 +764,7 @@ async def handle_device_choice(msg: UserDataResponse) -> RequestUserInput | Setu
                     },
                 ],
             )
-            
+
         except Exception as ex:
             _LOG.error("Error connecting to Vizio TV at %s: %s", host, ex)
             return SetupError(error_type=IntegrationSetupError.CONNECTION_REFUSED)
@@ -772,26 +786,26 @@ async def handle_pairing(msg: UserDataResponse) -> RequestUserInput | SetupError
     global _pairing_vizio_tv
     global _config_device
     global _setup_step
-    
+
     try:
         _LOG.debug("Handling pairing step")
-        
+
         # Check if _pairing_vizio_tv is initialized
         if not _pairing_vizio_tv:
             _LOG.error("Pairing TV object is not initialized")
             return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
         # Check if _config_device is initialized
         if not _config_device:
             _LOG.error("Config device object is not initialized")
             return SetupError(error_type=IntegrationSetupError.OTHER)
-        
+
         pin = msg.input_values.get("pin", "")
-        
+
         if not pin:
             _LOG.error("PIN is required for pairing")
             return SetupError(error_type=IntegrationSetupError.OTHER)
-        
+
         try:
             # Complete pairing with PIN
             _LOG.debug("Attempting to pair with PIN: %s", pin)
@@ -802,19 +816,19 @@ async def handle_pairing(msg: UserDataResponse) -> RequestUserInput | SetupError
             if not pair_result:
                 _LOG.error("Pairing result is None")
                 return SetupError(error_type=IntegrationSetupError.OTHER)
-                
+
             if not pair_result.auth_token:
                 _LOG.error("Failed to pair with Vizio TV: No auth token received")
                 return SetupError(error_type=IntegrationSetupError.OTHER)
-            
+
             # Store the auth token
             _LOG.debug("Pairing successful, storing auth token")
             _config_device.key = pair_result.auth_token
-            
+
             # Move to additional settings
             _LOG.debug("Moving to additional settings")
             return get_additional_settings(_config_device)
-            
+
         except Exception as ex:
             _LOG.error("Error during pairing with Vizio TV: %s", ex)
             return SetupError(error_type=IntegrationSetupError.OTHER)
@@ -883,9 +897,7 @@ def get_additional_settings(config_device: config.VizioDevice) -> RequestUserInp
             "label": {
                 "en": "Wake on LAN port",
             },
-            "field": {
-                "number": {"value": config_device.wol_port, "min": 1, "max": 65535, "steps": 1, "decimals": 0}
-            },
+            "field": {"number": {"value": config_device.wol_port, "min": 1, "max": 65535, "steps": 1, "decimals": 0}},
         },
         {
             "id": "test_wakeonlan",
@@ -900,7 +912,7 @@ def get_additional_settings(config_device: config.VizioDevice) -> RequestUserInp
         title={
             "en": "Additional settings",
         },
-        settings=additional_fields
+        settings=additional_fields,
     )
 
 
@@ -937,7 +949,7 @@ def get_wakeonlan_settings() -> RequestUserInput:
                 interface = ip_addr
                 break
         if interface is not None:
-            broadcast = interface[:interface.rfind('.') + 1] + '255'
+            broadcast = interface[: interface.rfind(".") + 1] + "255"
     except Exception:
         pass
 
@@ -945,19 +957,20 @@ def get_wakeonlan_settings() -> RequestUserInput:
         title={
             "en": "Test switching on your Vizio TV",
         },
-        settings=[{
-            "id": "info",
-            "label": {
-                "en": "Test switching on your Vizio TV",
-            },
-            "field": {
+        settings=[
+            {
+                "id": "info",
                 "label": {
-                    "value": {
-                        "en": f"Remote interface {interface} : suggested broadcast {broadcast}",
+                    "en": "Test switching on your Vizio TV",
+                },
+                "field": {
+                    "label": {
+                        "value": {
+                            "en": f"Remote interface {interface} : suggested broadcast {broadcast}",
+                        }
                     }
-                }
+                },
             },
-        },
             {
                 "field": {"text": {"value": _config_device.mac_address}},
                 "id": "mac_address",
@@ -987,7 +1000,7 @@ def get_wakeonlan_settings() -> RequestUserInput:
                     "number": {"value": _config_device.wol_port, "min": 1, "max": 65535, "steps": 1, "decimals": 0}
                 },
             },
-        ]
+        ],
     )
 
 
@@ -1004,7 +1017,7 @@ async def handle_additional_settings(msg: UserDataResponse) -> RequestUserConfir
     address = msg.input_values.get("address", "")
     mac_address = msg.input_values.get("mac_address", "")
     mac_address2 = msg.input_values.get("mac_address2", "")
-    interface  = msg.input_values.get("interface", "")
+    interface = msg.input_values.get("interface", "")
     broadcast = msg.input_values.get("broadcast", "")
     test_wakeonlan = msg.input_values.get("test_wakeonlan", "false") == "true"
     try:
@@ -1093,10 +1106,11 @@ async def handle_wake_on_lan(msg: UserDataResponse) -> RequestUserConfirmation |
     device = tv.VizioTv(device_config=_config_device)
     device.wakeonlan()
 
-    return RequestUserConfirmation(title={
+    return RequestUserConfirmation(
+        title={
             "en": f"{requests} requests sent to the TV",
         },
         header={
             "en": "Do you want to try another configuration?",
-        }
+        },
     )

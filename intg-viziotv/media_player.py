@@ -7,13 +7,13 @@ Media-player entity functions.
 import logging
 from typing import Any
 
-import ucapi
-
 import tv
-from config import VizioDevice, create_entity_id
+import ucapi
 from const import SimpleCommands
-from ucapi import MediaPlayer, media_player, EntityTypes
-from ucapi.media_player import DeviceClasses, Attributes, Features, States
+from ucapi import EntityTypes, MediaPlayer, media_player
+from ucapi.media_player import Attributes, DeviceClasses, Features, States
+
+from config import VizioDevice, create_entity_id
 
 _LOG = logging.getLogger(__name__)
 
@@ -70,19 +70,19 @@ class VizioMediaPlayer(MediaPlayer):
     def filter_changed_attributes(self, update: dict[str, Any]) -> dict[str, Any]:
         """Filter changed attributes."""
         attributes = {}
-        
+
         # Map state
         if "state" in update:
             attributes[Attributes.STATE] = States.ON if update["state"] == "ON" else States.OFF
-            
+
         # Map source
         if "source" in update:
             attributes[Attributes.SOURCE] = update["source"]
-            
+
         # Map source list
         if "source_list" in update:
             attributes[Attributes.SOURCE_LIST] = update["source_list"]
-            
+
         return attributes
 
     # pylint: disable=too-many-statements
@@ -99,9 +99,7 @@ class VizioMediaPlayer(MediaPlayer):
         :param params: optional command parameters
         :return: status code of the command. StatusCodes.OK if the command succeeded.
         """
-        _LOG.info(
-            "Got %s command request: %s %s", entity.id, cmd_id, params if params else ""
-        )
+        _LOG.info("Got %s command request: %s %s", entity.id, cmd_id, params if params else "")
 
         try:
             match cmd_id:
@@ -196,6 +194,7 @@ class VizioMediaPlayer(MediaPlayer):
             _LOG.error("Error executing command %s: %s", cmd_id, ex)
             return ucapi.StatusCodes.TIMEOUT
         return ucapi.StatusCodes.OK
+
 
 def _get_cmd_param(name: str, params: dict[str, Any] | None) -> str | bool | None:
     if params is None:

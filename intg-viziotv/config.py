@@ -9,10 +9,9 @@ import dataclasses
 import json
 import logging
 import os
-from dataclasses import dataclass
-from typing import Iterator
-
 from asyncio import Lock
+from collections.abc import Iterator
+from dataclasses import dataclass
 
 from ucapi import EntityTypes
 
@@ -44,7 +43,6 @@ def device_from_entity_id(entity_id: str) -> str | None:
 
 @dataclass
 class VizioDevice:
-    
     id: str
     """Unique identifier of the device"""
     name: str
@@ -65,6 +63,7 @@ class VizioDevice:
     """Broadcast address to use for magic packet"""
     wol_port: int = 9
     """Wake on LAN port"""
+
 
 class _EnhancedJSONEncoder(json.JSONEncoder):
     """Python dataclass json encoder."""
@@ -191,7 +190,7 @@ class Devices:
         :return: True if the configuration could be loaded.
         """
         try:
-            with open(self._cfg_file_path, "r", encoding="utf-8") as f:
+            with open(self._cfg_file_path, encoding="utf-8") as f:
                 data = json.load(f)
             for item in data:
                 try:

@@ -12,15 +12,17 @@ import os
 import sys
 from typing import Any
 
-import config
-from config import device_from_entity_id
-import tv
 import media_player as mp
 import remote
 import setup
+import tv
 import ucapi
 import ucapi.api as uc
-from ucapi.media_player import Attributes as MediaAttr, States
+from ucapi.media_player import Attributes as MediaAttr
+from ucapi.media_player import States
+
+import config
+from config import device_from_entity_id
 
 _LOG = logging.getLogger("driver")  # avoid having __main__ in log messages
 if sys.platform == "win32":
@@ -33,6 +35,7 @@ asyncio.set_event_loop(_LOOP)
 api = uc.IntegrationAPI(_LOOP)
 
 _configured_devices: dict[str, tv.VizioTv] = {}
+
 
 @api.listens_to(ucapi.Events.CONNECT)
 async def on_r2_connect_cmd() -> None:
@@ -99,23 +102,25 @@ async def on_subscribe_entities(entity_ids: list[str]) -> None:
     for entity_id in entity_ids:
         entity = api.configured_entities.get(entity_id)
         device_id = device_from_entity_id(entity_id)
-        
+
         if device_id is None:
             _LOG.error("Failed to extract device ID from entity ID: %s", entity_id)
             continue
-            
+
         if device_id in _configured_devices:
             device_config = _configured_devices[device_id]
             try:
                 attributes = device_config.attributes
                 if isinstance(entity, mp.VizioMediaPlayer):
-                    api.configured_entities.update_attributes(
-                        entity_id, attributes
-                    )
+                    api.configured_entities.update_attributes(entity_id, attributes)
                 if isinstance(entity, remote.VizioRemote):
                     api.configured_entities.update_attributes(
-                        entity_id, {ucapi.remote.Attributes.STATE:
-                                        remote.VIZIO_REMOTE_STATE_MAPPING.get(attributes.get(MediaAttr.STATE, States.UNKNOWN), ucapi.remote.States.UNKNOWN)}
+                        entity_id,
+                        {
+                            ucapi.remote.Attributes.STATE: remote.VIZIO_REMOTE_STATE_MAPPING.get(
+                                attributes.get(MediaAttr.STATE, States.UNKNOWN), ucapi.remote.States.UNKNOWN
+                            )
+                        },
                     )
                 try:
                     if not device_config.is_connected:
@@ -177,8 +182,8 @@ async def on_device_connected(device_id: str):
 
         if configured_entity.entity_type == ucapi.EntityTypes.MEDIA_PLAYER:
             if (
-                    configured_entity.attributes[ucapi.media_player.Attributes.STATE]
-                    == ucapi.media_player.States.UNAVAILABLE
+                configured_entity.attributes[ucapi.media_player.Attributes.STATE]
+                == ucapi.media_player.States.UNAVAILABLE
             ):
                 api.configured_entities.update_attributes(
                     entity_id,
@@ -274,7 +279,7 @@ async def on_device_update(device_id: str, update: dict[str, Any] | None) -> Non
 
     # TODO awkward logic: this needs better support from the integration library
     _LOG.debug("Update device %s for configured entities", device_id)
-    
+
     try:
         entity_ids = _entities_from_device_id(device_id)
         for entity_id in entity_ids:
@@ -285,9 +290,9 @@ async def on_device_update(device_id: str, update: dict[str, Any] | None) -> Non
 
             attributes = None
             try:
-                if isinstance(configured_entity, mp.VizioMediaPlayer):
-                    attributes = configured_entity.filter_changed_attributes(update)
-                elif isinstance(configured_entity, remote.VizioRemote):
+                if isinstance(configured_entity, mp.VizioMediaPlayer) or isinstance(
+                    configured_entity, remote.VizioRemote
+                ):
                     attributes = configured_entity.filter_changed_attributes(update)
             except Exception as ex:
                 _LOG.error("Error filtering attributes for entity %s: %s", entity_id, ex)
@@ -408,7 +413,7 @@ async def main():
     logging.getLogger("setup_flow").setLevel(level)
 
     config.devices = config.Devices(api.config_dir_path, on_device_added, on_device_removed)
-    
+
     # Check if there are any configured devices before iterating
     device_list = list(config.devices.all())
     if device_list:

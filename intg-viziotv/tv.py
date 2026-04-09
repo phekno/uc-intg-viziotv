@@ -5,18 +5,18 @@ This module implements the Vizio SmartCast communication of the Remote Two integ
 import asyncio
 import logging
 from asyncio import AbstractEventLoop
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, cast
+from typing import Any
 
 import wakeonlan
-from config import VizioDevice
+from const import EVENTS, VIZIO_KEY_MAPPING, PowerState
 from pyee.asyncio import AsyncIOEventEmitter
-from concurrent.futures import ThreadPoolExecutor
-from pyvizio import Vizio, VizioAsync, guess_device_type
+from pyvizio import VizioAsync, guess_device_type
 from pyvizio.const import DEVICE_CLASS_TV
 from ucapi.media_player import Attributes as MediaAttr
 
-from const import EVENTS, PowerState, VIZIO_KEY_MAPPING
+from config import VizioDevice
 
 _LOG = logging.getLogger(__name__)
 
@@ -28,9 +28,7 @@ _executor = ThreadPoolExecutor(max_workers=2)
 class VizioTv:
     """Representing a Vizio TV Device."""
 
-    def __init__(
-        self, device: VizioDevice, loop: AbstractEventLoop | None = None
-    ) -> None:
+    def __init__(self, device: VizioDevice, loop: AbstractEventLoop | None = None) -> None:
         """Create instance."""
         self._loop: AbstractEventLoop = loop or asyncio.get_running_loop()
         self.events = AsyncIOEventEmitter(self._loop)
@@ -50,7 +48,7 @@ class VizioTv:
         self._end_of_power_on: datetime | None = None
         self._active_source: str = ""
         self._power_on_task: asyncio.Task | None = None
-        self._input_list: List[str] = []
+        self._input_list: list[str] = []
 
     @property
     def device_config(self) -> VizioDevice:
@@ -121,18 +119,12 @@ class VizioTv:
     @property
     def power_off_in_progress(self) -> bool:
         """Return if power off has been recently requested."""
-        return (
-            self._end_of_power_off is not None
-            and self._end_of_power_off > datetime.utcnow()
-        )
+        return self._end_of_power_off is not None and self._end_of_power_off > datetime.utcnow()
 
     @property
     def power_on_in_progress(self) -> bool:
         """Return if power on has been recently requested."""
-        return (
-            self._end_of_power_on is not None
-            and self._end_of_power_on > datetime.utcnow()
-        )
+        return self._end_of_power_on is not None and self._end_of_power_on > datetime.utcnow()
 
     def update_config(self, device: VizioDevice) -> None:
         """Update the device configuration."""
@@ -163,14 +155,10 @@ class VizioTv:
             if self._vizio is not None and self._is_connected:
                 _LOG.debug("[%s] Device is alive", self.log_id)
                 self._is_on = True
-                self.events.emit(
-                    EVENTS.UPDATE, self._device.id, {"state": PowerState.ON}
-                )
+                self.events.emit(EVENTS.UPDATE, self._device.id, {"state": PowerState.ON})
             else:
                 _LOG.debug("[%s] Device is not alive", self.log_id)
-                self.events.emit(
-                    EVENTS.UPDATE, self._device.id, {"state": PowerState.OFF}
-                )
+                self.events.emit(EVENTS.UPDATE, self._device.id, {"state": PowerState.OFF})
                 await self.disconnect()
         except asyncio.CancelledError:
             pass
@@ -200,9 +188,7 @@ class VizioTv:
         device_type = DEVICE_CLASS_TV
         try:
             loop = asyncio.get_event_loop()
-            device_type = await loop.run_in_executor(
-                _executor, lambda: guess_device_type(self._device.address)
-            )
+            device_type = await loop.run_in_executor(_executor, lambda: guess_device_type(self._device.address))
         except Exception as err:
             _LOG.warning("[%s] Could not guess device type, using default: %s", self.log_id, err)
 
@@ -212,7 +198,7 @@ class VizioTv:
             name=self._device.name,
             auth_token=self._device.key,
             device_type=device_type,
-            timeout=5
+            timeout=5,
         )
 
         # Test connection
@@ -341,20 +327,18 @@ class VizioTv:
         if update:
             self.events.emit(EVENTS.UPDATE, self._device.id, update)
 
-    async def launch_app(
-        self, app_id: str | None = None, app_name: str | None = None
-    ) -> None:
+    async def launch_app(self, app_id: str | None = None, app_name: str | None = None) -> None:
         """Launch an app on the TV."""
         if self.power_off_in_progress:
             _LOG.debug("TV is powering off, not sending launch_app command")
             return
-        
+
         await self.check_connection_and_reconnect()
-        
+
         if not self._vizio or not self._is_connected:
             _LOG.error("[%s] Cannot launch app, TV is not connected", self.log_id)
             return
-            
+
         if app_name:
             # Check if it's a physical input (HDMI-1, TV, CAST, COMP, etc.)
             if app_name in self._input_list:
@@ -378,7 +362,7 @@ class VizioTv:
     async def send_key(self, key: str) -> None:
         """Send a key to the TV."""
         await self.check_connection_and_reconnect()
-        
+
         if not self._vizio or not self._is_connected:
             _LOG.error(
                 "[%s] Cannot send key '%s', TV is not connected",
@@ -386,10 +370,10 @@ class VizioTv:
                 key,
             )
             return
-            
+
         # Map the key to a Vizio remote key if possible
         vizio_key = VIZIO_KEY_MAPPING.get(key.replace("KEY_", ""), None)
-        
+
         if vizio_key:
             try:
                 await self._vizio.remote(vizio_key)
@@ -410,7 +394,7 @@ class VizioTv:
                         self._is_on = power_state
                         state = PowerState.ON if power_state else PowerState.OFF
                         self.events.emit(EVENTS.UPDATE, self._device.id, {"state": state})
-                    
+
                     # Only update other info if TV is on
                     if self._is_on:
                         # Update current input
@@ -422,7 +406,7 @@ class VizioTv:
                     await self.connect()
             except Exception as err:
                 _LOG.error("[%s] Error in poll worker: %s", self.log_id, err)
-                
+
             await asyncio.sleep(self._poll_interval)
 
     async def toggle_power(self, power: bool | None = None) -> None:
@@ -467,7 +451,7 @@ class VizioTv:
     async def power_on(self) -> None:
         """Power on the TV."""
         update = {}
-        
+
         # First try using the Vizio API
         if self._vizio:
             try:
@@ -478,7 +462,7 @@ class VizioTv:
                 return
             except Exception as err:
                 _LOG.warning("[%s] Could not power on using API: %s", self.log_id, err)
-        
+
         # If that fails, try Wake-on-LAN
         if self._device.mac_address:
             for i in range(7):
@@ -490,9 +474,9 @@ class VizioTv:
                         wakeonlan.send_magic_packet(self._device.mac_address2)
                 except Exception as err:
                     _LOG.error("[%s] Error sending magic packet: %s", self.log_id, err)
-                
+
                 await asyncio.sleep(2)
-                
+
                 # Check if TV is on
                 if self._vizio:
                     try:
@@ -503,10 +487,10 @@ class VizioTv:
                             break
                     except Exception:
                         pass
-                
+
                 # Try to reconnect
                 await self.check_connection_and_reconnect()
-                
+
                 if self._is_on:
                     update["state"] = PowerState.ON
                     break
@@ -525,7 +509,7 @@ class VizioTv:
                 wakeonlan.send_magic_packet(self._device.mac_address)
             except Exception as err:
                 _LOG.error("[%s] Error sending magic packet: %s", self.log_id, err)
-                
+
         if self._device.mac_address2:
             try:
                 _LOG.debug("[%s] Sending magic packet to %s", self.log_id, self._device.mac_address2)

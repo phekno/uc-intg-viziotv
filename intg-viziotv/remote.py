@@ -8,17 +8,18 @@ import asyncio
 import logging
 from typing import Any
 
+import tv
 import ucapi
-from config import VizioDevice, create_entity_id
+from const import (
+    SimpleCommands,
+)
 from ucapi import EntityTypes, Remote, StatusCodes, media_player
 from ucapi.media_player import States as MediaStates
 from ucapi.remote import Attributes, Commands, Features
 from ucapi.remote import States as RemoteStates
-from ucapi.ui import DeviceButtonMapping, Buttons
-import tv
-from const import (
-    SimpleCommands,
-)
+from ucapi.ui import Buttons, DeviceButtonMapping
+
+from config import VizioDevice, create_entity_id
 
 _LOG = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class VizioRemote(Remote):
     def filter_changed_attributes(self, update: dict[str, Any]) -> dict[str, Any]:
         """Filter changed attributes."""
         attributes = {}
-        
+
         # Map state
         if "state" in update:
             state = update["state"]
@@ -63,7 +64,7 @@ class VizioRemote(Remote):
                 attributes[Attributes.STATE] = RemoteStates.ON
             elif state == "OFF":
                 attributes[Attributes.STATE] = RemoteStates.OFF
-            
+
         return attributes
 
     def get_int_param(self, param: str, params: dict[str, Any], default: int):
@@ -77,9 +78,7 @@ class VizioRemote(Remote):
             return int(float(value))
         return default
 
-    async def command(
-        self, cmd_id: str, params: dict[str, Any] | None = None
-    ) -> StatusCodes:
+    async def command(self, cmd_id: str, params: dict[str, Any] | None = None) -> StatusCodes:
         """
         Remote entity command handler.
 
@@ -103,9 +102,7 @@ class VizioRemote(Remote):
             await self.handle_command(cmd_id, params)
         return StatusCodes.OK
 
-    async def handle_command(
-        self, cmd_id: str, params: dict[str, Any] | None = None
-    ) -> StatusCodes:
+    async def handle_command(self, cmd_id: str, params: dict[str, Any] | None = None) -> StatusCodes:
         """Handle command."""
         command = ""
         delay = 0
@@ -219,9 +216,7 @@ class VizioRemote(Remote):
                 commands = params.get("sequence", [])
                 res = StatusCodes.OK
                 for command in commands:
-                    res = await self.handle_command(
-                        Commands.SEND_CMD, {"command": command, "params": params}
-                    )
+                    res = await self.handle_command(Commands.SEND_CMD, {"command": command, "params": params})
                     if delay > 0:
                         await asyncio.sleep(delay)
             else:

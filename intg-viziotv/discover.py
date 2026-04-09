@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """This module implements a discovery function for Vizio TV."""
 
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List
 
 from pyvizio import Vizio, guess_device_type
 from pyvizio.const import DEVICE_CLASS_TV
@@ -25,7 +23,7 @@ def _update_service(self, zeroconf, type, name):
 ZeroconfListener.update_service = _update_service
 
 
-def _discover_ssdp() -> List[Dict]:
+def _discover_ssdp() -> list[dict]:
     """Run SSDP discovery synchronously (called in a thread)."""
     devices = []
     try:
@@ -63,7 +61,7 @@ def _discover_ssdp() -> List[Dict]:
     return devices
 
 
-def _discover_zeroconf() -> List[Dict]:
+def _discover_zeroconf() -> list[dict]:
     """Run Zeroconf discovery synchronously (called in a thread)."""
     devices = []
     try:
@@ -101,7 +99,7 @@ def _discover_zeroconf() -> List[Dict]:
     return devices
 
 
-def _discover_all() -> List[Dict]:
+def _discover_all() -> list[dict]:
     """Run both SSDP and Zeroconf discovery synchronously (called in a thread)."""
     ssdp_devices = _discover_ssdp()
     zeroconf_devices = _discover_zeroconf()
@@ -116,7 +114,7 @@ def _discover_all() -> List[Dict]:
     return list(unique_devices.values())
 
 
-async def async_identify_vizio_devices() -> List[Dict]:
+async def async_identify_vizio_devices() -> list[dict]:
     """
     Identify Vizio TVs using pyvizio discovery.
 

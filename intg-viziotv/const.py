@@ -2,9 +2,6 @@
 
 from enum import Enum, IntEnum
 
-from ucapi.media_player import Features
-from ucapi.ui import DeviceButtonMapping, Buttons, UiPage
-
 
 class EVENTS(IntEnum):
     """Internal driver events."""

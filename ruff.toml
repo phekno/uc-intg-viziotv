@@ -1,0 +1,29 @@
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "SIM108", # ternary operator (readability preference)
+    "SIM105", # contextlib.suppress (doesn't work with async)
+    "SIM110", # any() instead of for loop (readability preference)
+    "SIM101", # merge isinstance calls (readability preference)
+    "SIM102", # merge nested if (readability preference)
+    "UP042",  # StrEnum (requires Python 3.11+, keep compat)
+    "B904",   # raise from in except (too noisy for now)
+]
+
+[lint.per-file-ignores]
+"test_*.py" = ["F841", "E402"]
+
+[format]
+quote-style = "double"
