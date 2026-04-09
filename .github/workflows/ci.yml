@@ -11,10 +11,10 @@ jobs:
     name: Lint & Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -36,7 +36,7 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build Docker image
         run: docker build -t uc-intg-viziotv:ci .
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: docker-build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build Docker image
         run: docker build -t uc-intg-viziotv:ci .
@@ -55,6 +55,7 @@ jobs:
         uses: anchore/scan-action@v6
         with:
           image: uc-intg-viziotv:ci
-          fail-build: false
-          severity-cutoff: critical
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
           output-format: table

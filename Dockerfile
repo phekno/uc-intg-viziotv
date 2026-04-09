@@ -1,12 +1,10 @@
-FROM python:3.11-slim-bullseye AS base
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.11-slim-bookworm AS base
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --upgrade pip setuptools && \
+    pip3 install --no-cache-dir -r requirements.txt
 
 COPY intg-viziotv/ intg-viziotv/
 COPY driver.json .
