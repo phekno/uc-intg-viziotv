@@ -12,16 +12,16 @@ import os
 import sys
 from typing import Any
 
-import media_player as mp
-import remote
-import setup
-import tv
 import ucapi
 import ucapi.api as uc
 from ucapi.media_player import Attributes as MediaAttr
 from ucapi.media_player import States
 
 import config
+import media_player as mp
+import remote
+import setup
+import tv
 from config import device_from_entity_id
 
 _LOG = logging.getLogger("driver")  # avoid having __main__ in log messages

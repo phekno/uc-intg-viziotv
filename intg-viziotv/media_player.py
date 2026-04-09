@@ -7,13 +7,13 @@ Media-player entity functions.
 import logging
 from typing import Any
 
-import tv
 import ucapi
-from const import SimpleCommands
 from ucapi import EntityTypes, MediaPlayer, media_player
 from ucapi.media_player import Attributes, DeviceClasses, Features, States
 
+import tv
 from config import VizioDevice, create_entity_id
+from const import SimpleCommands
 
 _LOG = logging.getLogger(__name__)
 

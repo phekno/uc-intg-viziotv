@@ -10,13 +10,13 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import wakeonlan
-from const import EVENTS, VIZIO_KEY_MAPPING, PowerState
 from pyee.asyncio import AsyncIOEventEmitter
 from pyvizio import VizioAsync, guess_device_type
 from pyvizio.const import DEVICE_CLASS_TV
 from ucapi.media_player import Attributes as MediaAttr
 
 from config import VizioDevice
+from const import EVENTS, VIZIO_KEY_MAPPING, PowerState
 
 _LOG = logging.getLogger(__name__)
 

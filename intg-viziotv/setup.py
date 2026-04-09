@@ -14,9 +14,7 @@ import socket
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
 
-import discover
 import pyvizio
-import tv
 from ucapi import (
     DriverSetupRequest,
     IntegrationSetupError,
@@ -31,6 +29,8 @@ from ucapi import (
 )
 
 import config
+import discover
+import tv
 
 _LOG = logging.getLogger(__name__)
 

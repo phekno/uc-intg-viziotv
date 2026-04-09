@@ -8,18 +8,18 @@ import asyncio
 import logging
 from typing import Any
 
-import tv
 import ucapi
-from const import (
-    SimpleCommands,
-)
 from ucapi import EntityTypes, Remote, StatusCodes, media_player
 from ucapi.media_player import States as MediaStates
 from ucapi.remote import Attributes, Commands, Features
 from ucapi.remote import States as RemoteStates
 from ucapi.ui import Buttons, DeviceButtonMapping
 
+import tv
 from config import VizioDevice, create_entity_id
+from const import (
+    SimpleCommands,
+)
 
 _LOG = logging.getLogger(__name__)
 
